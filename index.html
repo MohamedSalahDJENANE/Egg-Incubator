@@ -6,6 +6,41 @@
     <title>Incubator Heater & Fluent Source Calculator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- PROTECTION STYLES -->
+    <style>
+        /* 1. Prevent text selection */
+        body {
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10 and IE 11 */
+            user-select: none; /* Standard syntax */
+        }
+
+        /* Allow inputs to still be clickable/typable */
+        input, select, textarea {
+            -webkit-user-select: auto;
+            -ms-user-select: auto;
+            user-select: auto;
+        }
+
+        /* 2. Prevent Printing to PDF */
+        @media print {
+            html, body {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+            }
+        }
+
+        /* 3. Blur screen class */
+        .blur-protection {
+            filter: blur(15px) grayscale(100%);
+            opacity: 0.1;
+            transition: all 0.1s ease;
+            pointer-events: none;
+        }
+    </style>
+
     <!-- MathJax for rendering real math formulations -->
     <script>
       MathJax = {
@@ -16,9 +51,14 @@
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans min-h-screen p-4 md:p-8">
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen p-4 md:p-8" id="appBody">
 
-    <div class="max-w-5xl mx-auto">
+    <!-- PROTECTION OVERLAY (Shows when trying to print/screenshot) -->
+    <div id="protectionWarning" class="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900 text-white font-bold text-2xl hidden">
+        Content Protected
+    </div>
+
+    <div class="max-w-5xl mx-auto" id="mainContent">
         <div class="mb-8">
             <h1 class="text-3xl font-bold text-slate-900"><i class="fa-solid fa-temperature-arrow-up text-orange-500 mr-2"></i>Incubator Heater Calculator</h1>
             <p class="text-slate-600 mt-2">Calculate steady-state heat loss and generate the volumetric energy source term (W/m³) for 2D CFD simulations.</p>
@@ -289,7 +329,44 @@
         Copied to clipboard!
     </div>
 
+    <!-- CALCULATION & PROTECTION SCRIPTS -->
     <script>
+        // --- SCREENSHOT & COPY PROTECTION LOGIC ---
+        
+        // 1. Disable Right Click (Context Menu)
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
+        // 2. Blur the app if window loses focus (combats Snipping Tool and command+shift+4)
+        window.addEventListener('blur', () => {
+            document.getElementById('mainContent').classList.add('blur-protection');
+            document.getElementById('protectionWarning').classList.remove('hidden');
+        });
+
+        // Restore when window regains focus
+        window.addEventListener('focus', () => {
+            document.getElementById('mainContent').classList.remove('blur-protection');
+            document.getElementById('protectionWarning').classList.add('hidden');
+        });
+
+        // 3. Intercept common screenshot key combos (PrintScreen)
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'PrintScreen') {
+                navigator.clipboard.writeText('Screenshots are disabled for this application.');
+            }
+        });
+
+        // 4. Intercept copy attempts
+        document.addEventListener('copy', (e) => {
+            // Allow copying ONLY from our specific Fluent button copy command
+            if(window.isAuthorizedCopy) {
+                window.isAuthorizedCopy = false; // reset
+                return; 
+            }
+            e.preventDefault();
+        });
+
+
+        // --- ORIGINAL APP LOGIC ---
         let currentUnit = 'cm';
 
         function calculate() {
@@ -309,25 +386,17 @@
             const heatH = (parseFloat(document.getElementById('heatH').value) || 0) * unitMult;
 
             // Math
-            // 1. Area of a rectangular prism
             const area = 2 * ((h * w) + (h * d) + (w * d));
             
-            // 2. Conduction loss: Q = (k*A*dT)/dx
             let qLoss = 0;
             if (thick > 0) {
                 qLoss = (k * area * (tin - tamb)) / thick;
             }
 
-            // 3. Evaporation cooling penalty (approx 9.5mW per egg)
             const qEvap = eggs * 0.0095;
-
-            // 4. Totals
             const qDemand = Math.max(0, qLoss + qEvap);
-            
-            // 5. Physical target (safety factor 2.5)
             const qPhysical = qDemand * 2.5;
 
-            // 6. Fluent Source (Volumetric based on 1m depth)
             let qCFD = 0;
             if (heatW > 0 && heatH > 0) {
                 const heaterVolume = heatW * heatH * 1.0; // 1m assumed depth
@@ -340,18 +409,15 @@
             document.getElementById('outEvap').textContent = qEvap.toFixed(3) + ' W';
             document.getElementById('outDemand').textContent = qDemand.toFixed(2) + ' W';
             
-            // Round up to nearest 10W for physical heater suggestion
             const roundedPhysical = Math.ceil(qPhysical / 10) * 10;
             document.getElementById('outPhysical').textContent = roundedPhysical + ' W';
-            
-            // Keep precision for CFD
             document.getElementById('outCFD').textContent = qCFD.toFixed(1);
         }
 
         function copyToClipboard() {
+            window.isAuthorizedCopy = true; // Temporary flag to bypass our own copy protection
             const val = document.getElementById('outCFD').textContent;
             
-            // Fallback for iframe environments
             const textArea = document.createElement("textarea");
             textArea.value = val;
             document.body.appendChild(textArea);
@@ -373,7 +439,6 @@
             }, 2500);
         }
 
-        // Toggle Demand Note Popover
         function toggleDemandNote(e) {
             if(e) e.stopPropagation();
             const popover = document.getElementById('demandPopover');
@@ -386,7 +451,6 @@
             popover.classList.toggle('hidden');
         }
 
-        // Close popover when clicking outside
         document.addEventListener('click', function(event) {
             const popover = document.getElementById('demandPopover');
             if (popover && !popover.classList.contains('hidden') && !event.target.closest('#demandPopover') && !event.target.closest('button[onclick*="toggleDemandNote"]')) {
@@ -399,7 +463,6 @@
             }
         });
 
-        // Handle unit toggle logic
         document.getElementById('lenUnit').addEventListener('change', (e) => {
             const newUnit = e.target.value;
             if (currentUnit === newUnit) return;
@@ -407,7 +470,6 @@
             const multiplier = newUnit === 'cm' ? 100 : 0.01;
             const fields = ['dimH', 'dimW', 'dimD', 'insulT', 'heatW', 'heatH'];
             
-            // Automatically convert the displayed values
             fields.forEach(id => {
                 const el = document.getElementById(id);
                 if (el.value) {
@@ -415,7 +477,6 @@
                 }
             });
             
-            // Update labels text
             document.querySelectorAll('.unit-label').forEach(el => {
                 el.textContent = `(${newUnit})`;
             });
@@ -424,13 +485,11 @@
             calculate();
         });
 
-        // Attach event listeners to all inputs to update instantly
         const inputs = document.querySelectorAll('input');
         inputs.forEach(input => {
             input.addEventListener('input', calculate);
         });
 
-        // Initial calculation on load
         calculate();
     </script>
 </body>
