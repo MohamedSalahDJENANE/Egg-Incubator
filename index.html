@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incubator Heater & Fluent Source Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- MathJax for rendering real math formulations -->
+    <script>
+      MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']]
+        }
+      };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-900"><i class="fa-solid fa-temperature-arrow-up text-orange-500 mr-2"></i>Incubator Heater Calculator</h1>
+            <p class="text-slate-600 mt-2">Calculate steady-state heat loss and generate the volumetric energy source term (W/m³) for 2D CFD simulations.</p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col lg:flex-row">
+            
+            <!-- INPUT SECTION -->
+            <div class="w-full lg:w-1/2 p-6 lg:p-8 bg-slate-50 border-r border-slate-200" id="inputForm">
+                <div class="flex justify-between items-end mb-6 pb-2 border-b border-slate-200">
+                    <h2 class="text-xl font-semibold">System Parameters</h2>
+                    <div class="flex items-center space-x-2">
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Unit:</label>
+                        <select id="lenUnit" class="text-sm border border-slate-300 rounded px-2 py-1 bg-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                            <option value="m">Meters (m)</option>
+                            <option value="cm" selected>Centimeters (cm)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="space-y-5">
+                    <!-- Geometry -->
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">1. Incubator Dimensions <span class="unit-label lowercase">(cm)</span></h3>
+                        <div class="grid grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Height</label>
+                                <input type="number" id="dimH" value="116" step="1" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Width</label>
+                                <input type="number" id="dimW" value="65" step="1" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Depth (for 3D area)</label>
+                                <input type="number" id="dimD" value="65" step="1" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Environment -->
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">2. Temperatures (°C)</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Target Inside Temp</label>
+                                <input type="number" id="tempIn" value="37.5" step="0.1" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Ambient Room Temp</label>
+                                <input type="number" id="tempAmb" value="20.0" step="1" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Insulation & Biological -->
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">3. Insulation & Load</h3>
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Insulation k (W/m·K)</label>
+                                <input type="number" id="insulK" value="0.033" step="0.001" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-sm" title="0.033 is typical for expanded polystyrene">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Wall Thickness <span class="unit-label lowercase">(cm)</span></label>
+                                <input type="number" id="insulT" value="2" step="0.5" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 mb-1">Number of Eggs (Max Load)</label>
+                            <input type="number" id="numEggs" value="24" step="1" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                        </div>
+                    </div>
+
+                    <!-- Heater Geometry (For Fluent) -->
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">4. Heater 2D Geometry</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Heater Width <span class="unit-label lowercase">(cm)</span></label>
+                                <input type="number" id="heatW" value="15" step="1" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 mb-1">Heater Height <span class="unit-label lowercase">(cm)</span></label>
+                                <input type="number" id="heatH" value="5" step="1" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OUTPUT SECTION -->
+            <div class="w-full lg:w-1/2 p-6 lg:p-8 bg-white flex flex-col justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-200">Results & Fluent Inputs</h2>
+                    
+                    <div class="space-y-6">
+                        <!-- Heat Loss Breakdown -->
+                        <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-slate-600 text-sm">Total Surface Area:</span>
+                                <span class="font-mono font-medium text-slate-800" id="outArea">0.00 m²</span>
+                            </div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-slate-600 text-sm">Wall Conduction Loss:</span>
+                                <span class="font-mono font-medium text-slate-800" id="outLoss">0.00 W</span>
+                            </div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-slate-600 text-sm">Egg Evaporation Penalty:</span>
+                                <span class="font-mono font-medium text-slate-800" id="outEvap">0.00 W</span>
+                            </div>
+                            <div class="border-t border-blue-200 mt-2 pt-2 flex justify-between items-center relative">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-slate-700">Total Absolute Heat Demand:</span>
+                                    <button onclick="toggleDemandNote(event)" class="text-blue-500 hover:text-blue-700 transition focus:outline-none" aria-label="Explanation">
+                                        <i class="fa-solid fa-circle-question"></i>
+                                    </button>
+                                </div>
+                                <span class="font-mono font-bold text-blue-700" id="outDemand">0.00 W</span>
+                                
+                                <!-- Demand Popover Note -->
+                                <div id="demandPopover" class="absolute bottom-8 left-0 w-72 md:w-80 bg-slate-800 text-slate-100 text-xs rounded-xl shadow-2xl p-4 hidden z-50 border border-slate-700 cursor-default">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <h4 class="font-bold text-blue-300 text-sm">Maximum Possible Demand</h4>
+                                        <button onclick="toggleDemandNote(event)" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                                    </div>
+                                    <p class="mb-2 leading-relaxed">The general energy balance is:</p>
+                                    <div class="bg-slate-900 py-1 px-2 rounded mb-2 overflow-x-auto text-blue-200">
+                                        \[ Q_{demand} = Q_{loss} - Q_{net} \]
+                                    </div>
+                                    <p class="mb-2 leading-relaxed">where $Q_{net} = Q_{metabolic} - Q_{evaporation}$.</p>
+                                    <p class="mb-2 leading-relaxed">On <strong>Day 1</strong> of incubation, the embryos produce no heat ($Q_{metabolic} = 0$). Therefore, the heater must compensate for both wall losses and evaporation:</p>
+                                    <div class="bg-slate-900 py-1 px-2 rounded overflow-x-auto text-blue-200">
+                                        \[ Q_{demand} = Q_{loss} + Q_{evaporation} \]
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Real World Heater -->
+                        <div>
+                            <p class="text-xs text-slate-500 mb-2 uppercase tracking-wide font-bold">Physical Build Recommendation</p>
+                            <div class="flex items-center justify-between bg-slate-800 text-white p-4 rounded-xl shadow-inner">
+                                <div>
+                                    <div class="font-medium text-sm text-slate-300">Target Heater Size</div>
+                                    <div class="text-xs text-slate-400">Includes 2.5x Safety Factor</div>
+                                </div>
+                                <div class="text-3xl font-bold text-orange-400 font-mono tracking-tight" id="outPhysical">0 W</div>
+                            </div>
+                        </div>
+
+                        <!-- CFD Source Term -->
+                        <div>
+                            <p class="text-xs text-slate-500 mb-2 uppercase tracking-wide font-bold">ANSYS Fluent 2D Input</p>
+                            <div class="border-2 border-orange-200 bg-orange-50 p-4 rounded-xl relative overflow-hidden">
+                                <div class="absolute right-0 top-0 opacity-10 text-orange-500 transform translate-x-4 -translate-y-4">
+                                    <i class="fa-solid fa-cube text-6xl"></i>
+                                </div>
+                                <div class="relative z-10">
+                                    <div class="font-medium text-sm text-slate-700 mb-1">Volumetric Heat Source (q''')</div>
+                                    <div class="text-xs text-slate-500 mb-3">Assuming default 1m depth in Fluent Reference Values.</div>
+                                    
+                                    <div class="flex items-center gap-3">
+                                        <div class="text-2xl font-bold text-slate-800 font-mono bg-white px-3 py-2 rounded shadow-sm border border-orange-200 flex-grow" id="outCFD">0</div>
+                                        <div class="text-slate-600 font-bold">W/m³</div>
+                                    </div>
+                                    
+                                    <button onclick="copyToClipboard()" class="mt-3 w-full bg-orange-100 hover:bg-orange-200 text-orange-700 py-2 rounded text-sm font-semibold transition flex items-center justify-center gap-2">
+                                        <i class="fa-regular fa-copy"></i> Copy for Fluent
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MATH EXPLANATION SECTION -->
+        <div class="mt-8 bg-white rounded-2xl shadow-xl p-6 lg:p-8 mb-8">
+            <h2 class="text-xl font-semibold mb-6 pb-2 border-b border-slate-200"><i class="fa-solid fa-calculator text-blue-500 mr-2"></i>The Math Behind the Calculations</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 text-sm text-slate-700">
+                
+                <!-- Eq 1 -->
+                <div>
+                    <h3 class="font-bold text-slate-800 mb-1">1. Total Surface Area ($A$)</h3>
+                    <p class="mb-2 text-slate-500 text-xs">Calculates the total external boundary of the rectangular incubator.</p>
+                    <div class="bg-slate-50 p-2 rounded border border-slate-200 text-blue-800 overflow-x-auto">
+                        \[ A = 2 \left( H \cdot W + H \cdot D + W \cdot D \right) \]
+                    </div>
+                </div>
+
+                <!-- Eq 2 -->
+                <div>
+                    <h3 class="font-bold text-slate-800 mb-1">2. Wall Conduction Loss ($Q_{loss}$)</h3>
+                    <p class="mb-2 text-slate-500 text-xs">Fourier's Law of steady-state heat conduction through the insulated walls.</p>
+                    <div class="bg-slate-50 p-2 rounded border border-slate-200 text-blue-800 overflow-x-auto">
+                        \[ Q_{loss} = \frac{k \cdot A \cdot (T_{in} - T_{amb})}{\Delta x} \]
+                    </div>
+                </div>
+
+                <!-- Eq 3 -->
+                <div>
+                    <h3 class="font-bold text-slate-800 mb-1">3. Evaporation Penalty ($Q_{evap}$)</h3>
+                    <p class="mb-2 text-slate-500 text-xs">Latent heat sink from eggs losing ~12% mass over 21 days (worst-case Day 1 condition where metabolic heat is 0).</p>
+                    <div class="bg-slate-50 p-2 rounded border border-slate-200 text-blue-800 overflow-x-auto">
+                        \[ Q_{evap} = N_{eggs} \cdot 0.0095 \text{ Watts} \]
+                    </div>
+                </div>
+
+                <!-- Eq 4 -->
+                <div class="relative">
+                    <div class="flex items-center gap-2 mb-1">
+                        <h3 class="font-bold text-slate-800">4. Total Heat Demand ($Q_{demand}$)</h3>
+                        <button onclick="toggleMathDemandNote(event)" class="text-blue-500 hover:text-blue-700 transition focus:outline-none" aria-label="Explanation">
+                            <i class="fa-solid fa-circle-question"></i>
+                        </button>
+                    </div>
+                    <p class="mb-2 text-slate-500 text-xs">The absolute minimum heat required to maintain steady-state thermal equilibrium.</p>
+                    <div class="bg-slate-50 p-2 rounded border border-slate-200 text-blue-800 overflow-x-auto">
+                        \[ Q_{demand} = Q_{loss} + Q_{evap} \]
+                    </div>
+                    
+                    <!-- Math Demand Popover Note -->
+                    <div id="mathDemandPopover" class="absolute bottom-full mb-2 left-0 w-72 md:w-80 bg-slate-800 text-slate-100 text-xs rounded-xl shadow-2xl p-4 hidden z-50 border border-slate-700 cursor-default">
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="font-bold text-blue-300 text-sm">Maximum Possible Demand</h4>
+                            <button onclick="toggleMathDemandNote(event)" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <p class="mb-2 leading-relaxed">The general energy balance is:</p>
+                        <div class="bg-slate-900 py-1 px-2 rounded mb-2 overflow-x-auto text-blue-200">
+                            \[ Q_{demand} = Q_{loss} - Q_{net} \]
+                        </div>
+                        <p class="mb-2 leading-relaxed">where $Q_{net} = Q_{metabolic} - Q_{evaporation}$.</p>
+                        <p class="mb-2 leading-relaxed">On <strong>Day 1</strong> of incubation, the embryos produce no heat ($Q_{metabolic} = 0$). Therefore, the heater must compensate for both wall losses and evaporation:</p>
+                        <div class="bg-slate-900 py-1 px-2 rounded overflow-x-auto text-blue-200">
+                            \[ Q_{demand} = Q_{loss} + Q_{evaporation} \]
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Eq 5 -->
+                <div>
+                    <h3 class="font-bold text-slate-800 mb-1">5. Physical Heater Target</h3>
+                    <p class="mb-2 text-slate-500 text-xs">Applies an engineering safety factor (2.5x) to handle rapid transients (door openings) and cold starts.</p>
+                    <div class="bg-slate-50 p-2 rounded border border-slate-200 text-blue-800 overflow-x-auto">
+                        \[ Q_{physical} = Q_{demand} \cdot 2.5 \]
+                    </div>
+                </div>
+
+                <!-- Eq 6 -->
+                <div>
+                    <h3 class="font-bold text-slate-800 mb-1">6. ANSYS Fluent Source Term ($q^{\prime\prime\prime}$)</h3>
+                    <p class="mb-2 text-slate-500 text-xs">Converts total Watts into a volumetric source. Assumes Fluent's default 1-meter 2D Extrusion Depth.</p>
+                    <div class="bg-slate-50 p-2 rounded border border-slate-200 text-blue-800 overflow-x-auto">
+                        \[ q^{\prime\prime\prime} = \frac{Q_{physical}}{W_{heater} \cdot H_{heater} \cdot 1.0 \text{ m}} \]
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-slate-800 text-white px-4 py-2 rounded-lg shadow-lg transform transition-all duration-300 translate-y-20 opacity-0">
+        Copied to clipboard!
+    </div>
+
+    <script>
+        let currentUnit = 'cm';
+
+        function calculate() {
+            // Determine length multiplier to convert to meters for standard math
+            const unitMult = document.getElementById('lenUnit').value === 'cm' ? 0.01 : 1.0;
+
+            // Get values and apply multiplier if inputs are in cm
+            const h = (parseFloat(document.getElementById('dimH').value) || 0) * unitMult;
+            const w = (parseFloat(document.getElementById('dimW').value) || 0) * unitMult;
+            const d = (parseFloat(document.getElementById('dimD').value) || 0) * unitMult;
+            const k = parseFloat(document.getElementById('insulK').value) || 0;
+            const thick = (parseFloat(document.getElementById('insulT').value) || 0) * unitMult;
+            const tin = parseFloat(document.getElementById('tempIn').value) || 0;
+            const tamb = parseFloat(document.getElementById('tempAmb').value) || 0;
+            const eggs = parseFloat(document.getElementById('numEggs').value) || 0;
+            const heatW = (parseFloat(document.getElementById('heatW').value) || 0) * unitMult;
+            const heatH = (parseFloat(document.getElementById('heatH').value) || 0) * unitMult;
+
+            // Math
+            // 1. Area of a rectangular prism
+            const area = 2 * ((h * w) + (h * d) + (w * d));
+            
+            // 2. Conduction loss: Q = (k*A*dT)/dx
+            let qLoss = 0;
+            if (thick > 0) {
+                qLoss = (k * area * (tin - tamb)) / thick;
+            }
+
+            // 3. Evaporation cooling penalty (approx 9.5mW per egg)
+            const qEvap = eggs * 0.0095;
+
+            // 4. Totals
+            const qDemand = Math.max(0, qLoss + qEvap);
+            
+            // 5. Physical target (safety factor 2.5)
+            const qPhysical = qDemand * 2.5;
+
+            // 6. Fluent Source (Volumetric based on 1m depth)
+            let qCFD = 0;
+            if (heatW > 0 && heatH > 0) {
+                const heaterVolume = heatW * heatH * 1.0; // 1m assumed depth
+                qCFD = qPhysical / heaterVolume;
+            }
+
+            // Update UI
+            document.getElementById('outArea').textContent = area.toFixed(2) + ' m²';
+            document.getElementById('outLoss').textContent = qLoss.toFixed(2) + ' W';
+            document.getElementById('outEvap').textContent = qEvap.toFixed(3) + ' W';
+            document.getElementById('outDemand').textContent = qDemand.toFixed(2) + ' W';
+            
+            // Round up to nearest 10W for physical heater suggestion
+            const roundedPhysical = Math.ceil(qPhysical / 10) * 10;
+            document.getElementById('outPhysical').textContent = roundedPhysical + ' W';
+            
+            // Keep precision for CFD
+            document.getElementById('outCFD').textContent = qCFD.toFixed(1);
+        }
+
+        function copyToClipboard() {
+            const val = document.getElementById('outCFD').textContent;
+            
+            // Fallback for iframe environments
+            const textArea = document.createElement("textarea");
+            textArea.value = val;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast();
+            } catch (err) {
+                console.error('Copy failed', err);
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+
+        // Toggle Demand Note Popover
+        function toggleDemandNote(e) {
+            if(e) e.stopPropagation();
+            const popover = document.getElementById('demandPopover');
+            popover.classList.toggle('hidden');
+        }
+
+        function toggleMathDemandNote(e) {
+            if(e) e.stopPropagation();
+            const popover = document.getElementById('mathDemandPopover');
+            popover.classList.toggle('hidden');
+        }
+
+        // Close popover when clicking outside
+        document.addEventListener('click', function(event) {
+            const popover = document.getElementById('demandPopover');
+            if (popover && !popover.classList.contains('hidden') && !event.target.closest('#demandPopover') && !event.target.closest('button[onclick*="toggleDemandNote"]')) {
+                popover.classList.add('hidden');
+            }
+            
+            const mathPopover = document.getElementById('mathDemandPopover');
+            if (mathPopover && !mathPopover.classList.contains('hidden') && !event.target.closest('#mathDemandPopover') && !event.target.closest('button[onclick*="toggleMathDemandNote"]')) {
+                mathPopover.classList.add('hidden');
+            }
+        });
+
+        // Handle unit toggle logic
+        document.getElementById('lenUnit').addEventListener('change', (e) => {
+            const newUnit = e.target.value;
+            if (currentUnit === newUnit) return;
+            
+            const multiplier = newUnit === 'cm' ? 100 : 0.01;
+            const fields = ['dimH', 'dimW', 'dimD', 'insulT', 'heatW', 'heatH'];
+            
+            // Automatically convert the displayed values
+            fields.forEach(id => {
+                const el = document.getElementById(id);
+                if (el.value) {
+                    el.value = (parseFloat(el.value) * multiplier).toFixed(newUnit === 'cm' ? 1 : 3);
+                }
+            });
+            
+            // Update labels text
+            document.querySelectorAll('.unit-label').forEach(el => {
+                el.textContent = `(${newUnit})`;
+            });
+            
+            currentUnit = newUnit;
+            calculate();
+        });
+
+        // Attach event listeners to all inputs to update instantly
+        const inputs = document.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('input', calculate);
+        });
+
+        // Initial calculation on load
+        calculate();
+    </script>
+</body>
+</html>
